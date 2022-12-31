@@ -1,0 +1,410 @@
+########################
+# Additional Files
+########################
+# inference.sh
+# output.txt
+# tokenizer
+# README.md
+# run.sh
+# select_output.py
+
+########################
+# Filled Code
+########################
+# ../codes/main.py:1
+            loss = model.batch_loss(lm_logits, input_ids, ce_loss_fct, PAD_ID)
+
+# ../codes/model_tfmr.py:1
+            # Reference: https://github.com/huggingface/transformers/blob/main/src/transformers/models/gpt2/modeling_gpt2.py
+            torch.tril(
+                torch.ones(
+                    (max_positions, max_positions),
+                    dtype=torch.uint8
+                )
+            ).view(
+                1, 1, max_positions, max_positions
+            ),
+
+# ../codes/model_tfmr.py:2
+        attn_weights = query @ key.transpose(-1, -2)
+        causal_mask = self.bias[
+                      ...,
+                      key.shape[-2] - query.shape[-2]: key.shape[-2],
+                      :key.shape[-2]
+                      ].bool()
+        attn_weights = F.softmax(attn_weights, dim=-1)
+        attn_output = attn_weights @ value
+
+# ../codes/model_tfmr.py:3
+        return tensor \
+            .reshape((*tensor.shape[:-1], num_heads, attn_head_size)) \
+            .transpose(1, 2)
+
+# ../codes/model_tfmr.py:4
+        return tensor \
+            .transpose(1, 2) \
+            .reshape((tensor.shape[0], tensor.shape[2], num_heads * attn_head_size))
+
+# ../codes/model_tfmr.py:5
+        # Reference: GPT-2 link mentioned previously
+        hidden_states = attn_output + residual
+        residual_2 = hidden_states
+        hidden_states = self.ln_2(hidden_states)
+        mlp_output = self.mlp(hidden_states)
+        hidden_states = residual_2 + mlp_output
+
+# ../codes/model_tfmr.py:6
+        # Reference: Reference: https://github.com/huggingface/transformers/blob/main/src/transformers/models/gpt2/modeling_gpt2.py
+        if past_key_values is None:
+            past_length = 0
+            past_key_values = tuple([None] * len(self.h))
+        else:
+            past_length = past_key_values[0][0].size(-2)
+        position_ids = torch.arange(
+            past_length,
+            input_shape[-1] + past_length,
+            dtype=int,
+            device=input_ids.device if input_ids is not None else inputs_embeds.device
+        )
+        position_ids = position_ids.unsqueeze(0)
+        position_ids = position_ids.view(-1, input_shape[-1])
+        position_embeds = self.wpe(position_ids)
+
+# ../codes/model_tfmr.py:7
+            loss = self.batch_loss(lm_logits, labels, ce_loss_fct, PAD_ID).mean()
+
+# ../codes/model_tfmr.py:8
+                        # Reference: https://github.com/huggingface/transformers/blob/main/src/transformers/generation_logits_process.py
+                        prob = logits.softmax(dim=-1)
+                        sorted_prob, sorted_indices = prob.sort()
+                        cumu_prob = sorted_prob.cumsum(dim=-1)
+                        sorted_filter_mask = cumu_prob <= (1 - top_p)
+                        original_filter_mask = sorted_filter_mask.scatter(1, sorted_indices, sorted_filter_mask)
+                        logits = logits.masked_fill(original_filter_mask, -torch.inf)
+
+# ../codes/model_tfmr.py:9
+                        top_k_values, top_k_indices = logits.topk(top_k, dim=-1, sorted=False)
+                        logits = torch.full_like(logits, -torch.inf).scatter_(1, top_k_indices, top_k_values)
+
+
+########################
+# References
+########################
+# Reference: https://github.com/huggingface/transformers/blob/main/src/transformers/models/gpt2/modeling_gpt2.py
+# https://github.com/huggingface/transformers/blob/main/src/transformers/generation_logits_process.py
+# GPT-2 link mentioned previously
+# https://github.com/huggingface/transformers/blob/main/src/transformers/models/gpt2/modeling_gpt2.py
+
+########################
+# Other Modifications
+########################
+# _codes/main.py -> ../codes/main.py
+# 16 - random.seed(1229)
+# 17 - torch.manual_seed(1229)
+# 18 - torch.cuda.manual_seed_all(1229)
+# 19 - np.random.seed(1229)
+# 17 + from copy import deepcopy
+# 32 - parser.add_argument('--cpu_count', type=int, default=20,
+# 32 ?                                                      ^^
+# 29 + parser.add_argument('--cpu_count', type=int, default=64,
+# 29 ?                                                      ^^
+# 42 - parser.add_argument('--train_dir', type=str, default='./train_test',
+# 42 ?                                                         ^^^  - - -
+# 39 + parser.add_argument('--train_dir', type=str, default='./checkpoints',
+# 39 ?                                                         ^^^^^^^
+# 43 + parser.add_argument('--pretrain_ckpt', type=str, default='pretrained_ckpt12.tar',
+# 44 +     help='Pre-Trained checkpoint.')
+# 52 - parser.add_argument('--top_p', type=float, default=1.0,
+# 52 ?                                                    ^ ^
+# 51 + parser.add_argument('--top_p', type=float, default=0.9,
+# 51 ?                                                    ^ ^
+# 55 -     help='The k for top-k sampling. Default: 40')
+# 55 ?                                                  --------
+# 54 +     help='The k for top-k sampling. Default: 40')
+# 55 + parser.add_argument('--tb_path', type=str, default='../tb',
+# 56 +                     help='Tensorboard Path')
+# 57 + parser.add_argument('--shuffle', default=False, action='store_true',
+# 58 +                     help='Shuffle the training dataset')
+# 59 + parser.add_argument('--shuffle_seed', default=2022, type=int)
+# 60 + parser.add_argument('--seed', default=2022, type=int)
+# 61 + parser.add_argument('--device', default='cuda:0', type=str)
+# 62 + parser.add_argument('--head', type=int, default=None)
+# 63 + parser.add_argument('--layers', type=int, nargs='+', default=[1, 2, 3])
+# 64 + parser.add_argument('--load', default=False, action='store_true')
+# 65 + parser.add_argument('--output_dir', type=str, default='output')
+# 66 + parser.add_argument('--full_epoch', default=False, action='store_true')
+# 67 + parser.add_argument('--observe_bleu', default=False, action='store_true')
+# 68 + parser.add_argument('--es_criteria', default='ppl', choices=['ppl', 'bleu'])
+# 69 + parser.add_argument('--tolerance', type=int, default=0)
+# 70 + parser.add_argument('--data_cross_bleu', default=False, action='store_true')
+# 71 + parser.add_argument('--data_repeat', default= 1, type=int)
+# 72 +
+# 74 +
+# 75 + if args.es_criteria == 'bleu':
+# 76 +     args.observe_bleu = True
+# 77 +
+# 78 + # Global Random Seed
+# 79 + if args.seed < 0:
+# 80 +     args.seed = int(time.time())
+# 81 + print("Random Seed", args.seed)
+# 82 + np.random.seed(args.seed)
+# 83 + random.seed(args.seed)
+# 84 + torch.manual_seed(args.seed)
+# 85 + torch.cuda.manual_seed(args.seed)
+# 86 + torch.cuda.manual_seed_all(args.seed)
+# 87 + torch.backends.cudnn.deterministic = True
+# 88 + torch.backends.cudnn.benchmark = False
+# 89 +
+# 90 + from torch.utils.tensorboard import SummaryWriter
+# 91 +
+# 92 + import nltk
+# 93 + assert nltk.__version__ == "3.5", f"Invalid nltk version {nltk.__version__}"
+# 102 +     bar = tqdm.tqdm(desc="Evalutaing PPL")
+# 115 +         bar.update(1)
+# 123 +     print("Evaluating BLUE score with %d CPUs" % cpu_count)
+# 91 -     assert len(gen_ids) == len(truth_ids)
+# 125 +     # assert len(gen_ids) == len(truth_ids)
+# 125 ?    ++
+# 92 -     sample_hyps_num = len(gen_ids)
+# 126 +     # sample_hyps_num = len(gen_ids)
+# 126 ?    ++
+# 99 -         tasks = ((truth_ids, gen_ids[i], weights) for i in range(sample_hyps_num))
+# 99 ?                                                                  ----   ^^^ ^^^^
+# 133 +         tasks = ((truth_ids, gen_ids[i], weights) for i in range(len(gen_ids)))
+# 133 ?                                                                    +++++ ^^ ^
+# 102 -         values = tqdm.tqdm(values, total=sample_hyps_num)
+# 102 ?                                          ----   ^^^ ^^^^
+# 136 +         values = tqdm.tqdm(values, total=len(gen_ids))
+# 136 ?                                            +++++ ^^ ^
+# 108 -         tasks = ((gen_ids, truth_ids[i], weights) for i in range(sample_hyps_num))
+# 108 ?                                                                  ----   ^^^ ^^^^
+# 142 +         tasks = ((gen_ids, truth_ids[i], weights) for i in range(len(truth_ids)))
+# 142 ?                                                                    +++++++ ^^ ^
+# 111 -         values = tqdm.tqdm(values, total=sample_hyps_num)
+# 111 ?                                          ----   ^^^ ^^^^
+# 145 +         values = tqdm.tqdm(values, total=len(truth_ids))
+# 145 ?                                            +++++++ ^^ ^
+# 194 + def create_model(_args):
+# 195 +     with open(_args.model_config) as fin:
+# 196 +         model_config = json.load(fin)
+# 197 +     if _args.head is not None:
+# 198 +         model_config['n_head'] = _args.head
+# 199 +         assert _args.pretrain_dir == 'None'
+# 200 +     if _args.layers is not None:
+# 201 +         model_config['n_layer'] = len(_args.layers)
+# 202 +     print("Model Configs", model_config)
+# 203 +     config = ModelConfig(**model_config)
+# 204 +     _model = TfmrLMHeadModel(config)
+# 205 +     init_weights_func = get_init_weights_func(config=config)
+# 206 +     _model.apply(init_weights_func)
+# 207 +     return _model
+# 208 +
+# 209 + def load_ckpt(_args):
+# 210 +     _path = os.path.join(_args.pretrain_dir, _args.pretrain_ckpt)
+# 211 +     if os.path.exists(_path):
+# 212 +         print("Loading model from %s" % _path)
+# 213 +         _model = torch.load(_path)
+# 214 +     else:
+# 215 +         raise RuntimeError("No such checkpoint: %s" % _path)
+# 216 +     return _model
+# 217 +
+# 218 + def evaluate_bleu(split='test'):
+# 219 +     result = model.inference(device=args.device, PAD_ID=PAD_ID,
+# 220 +                              batch_size=args.batch_size, maxlen=args.maxlen, decode_strategy=args.decode_strategy,
+# 221 +                              temperature=args.temperature, top_p=args.top_p, top_k=args.top_k)
+# 222 +
+# 223 +     eval_result = evaluate(gen_ids=result, truth_ids=data_remove_pad[split], cpu_count=args.cpu_count)
+# 224 +     return result, eval_result
+# 225 +
+# 226 + class WindowLogger:
+# 227 +     def __init__(self, _writer: SummaryWriter, _window: int = 20, _log_name = 'loss/train'):
+# 228 +         self.window = _window
+# 229 +         self.writer = _writer
+# 230 +         self.running_loss = []
+# 231 +         self.log_name = _log_name
+# 232 +
+# 233 +     def append(self, val, _step):
+# 234 +         self.running_loss += [val]
+# 235 +         if len(self.running_loss) == self.window:
+# 236 +             self.writer.add_scalar(self.log_name, np.mean(self.running_loss), _step)
+# 237 +             self.running_loss = []
+# 238 +
+# 161 -
+# 163 -     device = "cuda:6" #torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+# 241 +     device = args.device
+# 244 +     os.makedirs(args.output_dir, exist_ok=True)
+# 245 +
+# 252 +
+# 253 +     if args.data_cross_bleu:
+# 254 +         dev_on_test = evaluate(data_remove_pad['dev'], data_remove_pad['test'], args.cpu_count)
+# 255 +         train_on_test = evaluate(data_remove_pad['train'], data_remove_pad['test'], args.cpu_count)
+# 256 +         train_on_dev = evaluate(data_remove_pad['train'], data_remove_pad['dev'], args.cpu_count)
+# 257 +         print("dev_on_test", dev_on_test)
+# 258 +         print("train_on_test", train_on_test)
+# 259 +         print("train_on_dev", train_on_dev)
+# 260 +         exit(0)
+# 261 +
+# 263 +         writer = SummaryWriter(os.path.join(args.tb_path, args.name))
+# 264 +         if args.load:
+# 265 +             print("Load pretrained model")
+# 266 +             model = load_ckpt(args)
+# 173 -         if args.pretrain_dir is None:
+# 173 ?                              ^^
+# 267 +         elif args.pretrain_dir == 'None':
+# 267 ?         ++                     ^^ +    +
+# 174 -             print("Created model with fresh parameters.")
+# 174 ?                          -
+# 268 +             print("Create model with fresh parameters.")
+# 269 +             model = create_model(args)
+# 175 -             with open(args.model_config) as fin:
+# 176 -                 model_config = json.load(fin)
+# 177 -                 config = ModelConfig(**model_config)
+# 178 -             model = TfmrLMHeadModel(config)
+# 179 -             init_weights_func = get_init_weights_func(config=config)
+# 180 -             model.apply(init_weights_func)
+# 182 -             model_path = os.path.join(args.pretrain_dir, 'pretrained_ckpt.tar')
+# 183 -             if os.path.exists(model_path):
+# 184 -                 print("Loading model from %s" % model_path)
+# 185 -                 model = torch.load(model_path)
+# 186 -             else:
+# 187 -                 raise RuntimeError("No such checkpoint: %s"%model_path)
+# 271 +             assert args.layers is not None
+# 272 +             print("Load pretrained model")
+# 273 +             pretrained_model = load_ckpt(args)
+# 274 +             selected_modules = [pretrained_model.transformer.h[x - 1] for x in args.layers]
+# 275 +             pretrained_model.transformer.h = torch.nn.ModuleList(selected_modules)
+# 276 +
+# 277 +             print("Create model with specified layers", args.layers)
+# 278 +             model = create_model(args)
+# 279 +             model.load_state_dict(pretrained_model.state_dict(), strict=True)
+# 280 +
+# 190 -
+# 191 -
+# 192 -
+# 287 +         best_bleu = 0
+# 288 +         bleu = 0
+# 289 +         step = 0
+# 290 +         wl = WindowLogger(writer)
+# 291 +         criteria_failure_counter = 0
+# 292 +
+# 293 +         lst = []
+# 294 +         for i in range(args.data_repeat):
+# 295 +             lst += deepcopy(data["train"])
+# 296 +         data["train"] = lst
+# 299 +             print(optimizer)
+# 303 +             if args.shuffle:
+# 304 +                 rng = random.Random(args.shuffle_seed + epoch)
+# 305 +                 rng.shuffle(data["train"])
+# 205 -                 st, ed = ed, (ed + args.batch_size) if (ed + args.batch_size < len(data["train"])) else len(data["train"])
+# 309 +                 st, ed = ed, ((ed + args.batch_size) if (ed + args.batch_size < len(data["train"])) else len(data["train"]))
+# 309 ?                              +                                                                                             +
+# 316 +                 step += 1
+# 318 +                 wl.append(loss.tolist(), step)
+# 319 +                 writer.add_scalar('loss/step_loss', loss.tolist(), step)
+# 327 +             writer.add_scalar('loss/validation', val_loss.item(), step)
+# 328 +             writer.add_scalar('perplexity/validation', val_ppl.item(), step)
+# 220 -             if val_ppl < best_val_ppl:
+# 221 -                 best_val_ppl = val_ppl
+# 222 -                 best_epoch = epoch
+# 224 -                 with open(os.path.join(args.train_dir, 'checkpoint_%s.pth.tar' % args.name), 'wb') as fout:
+# 225 -                     torch.save(model, fout)
+# 330 +             def better_criteria():
+# 331 +                 return val_ppl < best_val_ppl if args.es_criteria == 'ppl' else bleu > best_bleu
+# 333 +             def continue_criteria():
+# 334 +                 global criteria_failure_counter
+# 335 +                 if better_criteria():
+# 336 +                     criteria_failure_counter = 0
+# 337 +                     return True
+# 338 +                 else:
+# 339 +                     criteria_failure_counter += 1
+# 340 +                     if criteria_failure_counter >= args.tolerance:
+# 341 +                         return False
+# 342 +                     return True
+# 343 +
+# 344 +             def info():
+# 352 +                 if args.observe_bleu:
+# 353 +                     print("  dev_set, forward BLEU-4 %.3f, backward BLEU-4 %.3f, harmonic BLEU-4 %.3f" % (
+# 354 +                         eval_result["fw-bleu-4"], eval_result["bw-bleu-4"], eval_result["fw-bw-bleu-4"]))
+# 355 +                 print("  criteria failure counter %d" % criteria_failure_counter)
+# 356 +
+# 357 +             if args.observe_bleu:
+# 358 +                 _, eval_result = evaluate_bleu('dev')
+# 359 +                 writer.add_scalar('bleu-4/validation_forward', eval_result['fw-bleu-4'], step)
+# 360 +                 writer.add_scalar('bleu-4/validation_backward', eval_result['bw-bleu-4'], step)
+# 361 +                 writer.add_scalar('bleu-4/validation_harmonic', eval_result['fw-bw-bleu-4'], step)
+# 362 +                 bleu = eval_result['fw-bw-bleu-4']
+# 363 +
+# 364 +             if continue_criteria() or args.full_epoch:
+# 365 +                 if better_criteria():
+# 366 +                     with open(os.path.join(args.train_dir, 'checkpoint_%s.pth.tar' % args.name), 'wb') as fout:
+# 367 +                         print("Saving checkpoint as a better result")
+# 368 +                         torch.save(model, fout)
+# 369 +
+# 370 +                 if val_ppl < best_val_ppl:
+# 371 +                     best_val_ppl = val_ppl
+# 372 +                     best_epoch = epoch
+# 373 +                 if bleu > best_bleu:
+# 374 +                     best_bleu = bleu
+# 375 +
+# 376 +                 info()
+# 235 -                 print("Validation loss: %.3f, becomes larger. Stop training."%val_ppl)
+# 378 +                 info()
+# 379 +                 time.sleep(5)
+# 249 -         result = model.inference(device=device, PAD_ID=PAD_ID,
+# 250 -             batch_size=args.batch_size, maxlen=args.maxlen, decode_strategy=args.decode_strategy, temperature=args.temperature, top_p=args.top_p, top_k=args.top_k)
+# 251 -         with open('output_%s.txt'%args.decode_strategy, 'w') as fout:
+# 393 +
+# 394 +         result, eval_result = evaluate_bleu()
+# 395 +         print("        test_set, forward BLEU-4 %.3f, backward BLEU-4 %.3f, harmonic BLEU-4 %.3f" % (
+# 396 +             eval_result["fw-bleu-4"], eval_result["bw-bleu-4"], eval_result["fw-bw-bleu-4"]))
+# 397 +         print("        test_set, write inference results to output_%s.txt" % args.decode_strategy)
+# 398 +         with open(os.path.join(args.output_dir, '%s_%.2f_%s.txt' % (args.test, args.temperature, args.decode_strategy)), 'w') as fout:
+# 399 +             fout.write(
+# 400 + """[Checkpoint Name] %s
+# 401 + [Temp, Strategy ] %.2f %s
+# 402 + [Perplexity     ] %.2f
+# 403 + [Forward BLEU-4 ] %.3f
+# 404 + [Backward BLEU-4] %.3f
+# 405 + [Harmonic BLEU-4] %.3f
+# 406 +
+# 407 + """ % (args.test, args.temperature, args.decode_strategy, test_ppl, eval_result["fw-bleu-4"], eval_result["bw-bleu-4"], eval_result["fw-bw-bleu-4"]))
+# 254 -                 print(k, out)
+# 410 +                 # print(k, out)
+# 410 ?                 ++
+# 256 -         eval_result = evaluate(gen_ids=result, truth_ids=data_remove_pad["test"])
+# 257 -         print("        test_set, forward BLEU-4 %.3f, backward BLEU-4 %.3f, harmonic BLEU-4 %.3f" % (eval_result["fw-bleu-4"], eval_result["bw-bleu-4"], eval_result["fw-bw-bleu-4"]))
+# 258 -         print("        test_set, write inference results to output_%s.txt"%args.decode_strategy)
+# 412 +         with open(os.path.join(args.output_dir, 'inference.jsonl'), 'a') as f:
+# 413 +             json.dump({
+# 414 +                 "config": vars(args),
+# 415 +                 "ppl": test_ppl,
+# 416 +                 "f_bleu4": eval_result["fw-bleu-4"],
+# 417 +                 "b_bleu4": eval_result["bw-bleu-4"],
+# 418 +                 "h_bleu4": eval_result["fw-bw-bleu-4"]
+# 419 +             }, f)
+# 420 +             f.write("\n")
+# _codes/model_tfmr.py -> ../codes/model_tfmr.py
+# 203 -         device = input_ids.device if input_ids is not None else inputs_embeds.device
+# 204 -
+# 283 +
+# 284 +     def batch_loss(self, logits, labels, loss_func, PAD_ID, eps=1e-10):
+# 285 +         assert logits.shape[:2] == labels.shape, f"{logits.shape} , {labels.shape}"
+# 286 +
+# 287 +         # Filter input
+# 288 +         shift_logits = logits[..., :-1, :].contiguous()
+# 289 +         shift_labels = labels[..., 1:].contiguous()
+# 290 +
+# 291 +         # Define Mask: 1 means selected as a loss term
+# 292 +         position_mask = torch.ones_like(labels, dtype=torch.float)
+# 293 +         position_mask[:, 1:] = (shift_labels != PAD_ID).float()
+# 294 +         position_mask = position_mask[:, :-1]
+# 295 +
+# 296 +         # Calculate Loss
+# 297 +         element_loss = loss_func(shift_logits.transpose(1, 2), shift_labels)
+# 298 +         batch_loss = (element_loss * position_mask).sum(dim=1) / (position_mask.sum(dim=1) + eps)
+# 299 +         return batch_loss
+# 336 +         from tqdm import trange
+# 292 -             for i in range(0, int(5000/batch_size)+1):
+# 339 +             for i in trange(0, int(5000/batch_size)+1, desc="Inference"):
+# 339 ?                      +                               ++++++++++++++++++
+

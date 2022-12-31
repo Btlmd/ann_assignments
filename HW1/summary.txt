@@ -1,0 +1,376 @@
+########################
+# Additional Files
+########################
+# train.sh
+# README.md
+
+########################
+# Filled Code
+########################
+# ../codes/layers.py:1
+        self.x = input
+        self.x[self.x < 0] = 0
+
+        if self.activation_report: # Activation Analysis Hook
+            self.activation_report(self)
+        return self.x
+
+# ../codes/layers.py:2
+        return np.where(self.x <= 0, 0, grad_output)
+
+# ../codes/layers.py:3
+        self.y = 1 / (np.exp(-input) + 1)
+        return self.y.copy()
+
+# ../codes/layers.py:4
+        return self.y * (1 - self.y) * grad_output
+
+# ../codes/layers.py:5
+        s = np.sqrt(2 / np.pi)
+        b = 0.044715 * s
+        self.x = input
+        self.th = np.tanh(s * self.x + b * self.x ** 3)
+
+        if self.activation_report:  # Activation Analysis Hook
+            self.activation_report(self)
+        return 0.5 * self.x * (1 + self.th)
+
+# ../codes/layers.py:6
+        s = np.sqrt(2 / np.pi)
+        b = 0.044715 * s
+        g_grad =  0.5 + 0.5 * self.th + 0.5 * self.x * (1 - self.th ** 2) * (s + 3 * b * self.x ** 2)
+        return g_grad * grad_output
+
+# ../codes/layers.py:7
+        '''
+        input: (B, in_C)
+        return: (B, out_C)
+        '''
+        self.x = input
+        return self.x @ self.W + self.b
+
+# ../codes/layers.py:8
+        '''
+        grad_output: (B, out_C)
+        return: (B, in_C)
+        '''
+        self.grad_W, self.grad_b  = self.x.T @ grad_output, grad_output.sum(axis=0)
+
+        if self.norm_report:  # Gradient Analysis Hook
+            self.norm_report(self)
+
+        return grad_output @ self.W.T
+
+# ../codes/loss.py:1
+        '''
+        input, target: (B, C)
+        '''
+        self.delta = input - target
+        return 0.5 * np.mean(np.sum(self.delta ** 2, axis=1))
+
+# ../codes/loss.py:2
+        return self.delta / self.delta.shape[0]
+
+# ../codes/loss.py:3
+        '''
+        input, target: (B, C)
+        '''
+        i_max = input.max(axis=1)[:, None]
+        exp = np.exp(input - i_max)
+        exp_sum = exp.sum(axis=1)[:,None]
+        exp /= exp_sum
+        exp += self.threshold
+        self.probabilities = exp
+        log_v = np.log(self.probabilities)
+        ce = -(log_v * target).sum(axis=1)
+        return ce.mean()
+
+# ../codes/loss.py:4
+        return (self.probabilities - target) / target.shape[0]
+
+# ../codes/loss.py:5
+        '''
+        input, target: (B, C)
+        '''
+        labels = np.argmax(target, axis=1)
+        target_values = np.take_along_axis(input, labels[:, None], axis=1)
+        self.hinge = self.margin - target_values + input
+        self.hinge[(target == 1) | (self.hinge < 0)] = 0
+        return self.hinge.sum(axis=1).mean()
+
+# ../codes/loss.py:6
+        grad = np.where(self.hinge > 0, 1, 0)
+        grad[target == 1] = -grad.sum(axis=1)
+        grad = grad / target.shape[0]
+        return grad
+
+
+########################
+# References
+########################
+
+########################
+# Other Modifications
+########################
+# _codes/network.py -> ../codes/network.py
+# 27 +
+# 28 +     def __str__(self):
+# 29 +         return f"{type(self).__name__}(\n  " + "\n  ".join(map(str, self.layer_list)) + "\n)"
+# _codes/layers.py -> ../codes/layers.py
+# 2 -
+# 8 +
+# 9 +     def __str__(self):
+# 10 +         return f"{type(self).__name__}(name={self.name})"
+# 26 -     def __init__(self, name):
+# 28 +     def __init__(self, name, activation_report=None):
+# 30 +         self.activation_report = activation_report
+# 42 -     def __init__(self, name):
+# 48 +     def __init__(self, name, activation_report=None):
+# 50 +         assert activation_report is None, "Activation for Sigmoid is not well-defined"
+# 58 -     def __init__(self, name):
+# 64 +     def __init__(self, name, activation_report=None):
+# 66 +         self.activation_report = activation_report
+# 66 -
+# 79 +
+# 74 -     def __init__(self, name, in_num, out_num, init_std):
+# 89 +     def __init__(self, name, in_num, out_num, init_std, norm_report=None):
+# 89 ?                                                       ++++++++++++++++++
+# 93 +         self.init_std = init_std
+# 103 +         self.norm_report = norm_report
+# 104 +
+# 105 +     def __str__(self):
+# 106 +         return f"{type(self).__name__}(name={self.name}, in_num={self.in_num}, out_num={self.out_num}, init_std={self.init_std})"
+# 107 +
+# 108 -         self.b = self.b - lr * self.diff_b
+# 108 ?                                           -
+# 141 +         self.b = self.b - lr * self.diff_b
+# _codes/run_mlp.py -> ../codes/run_mlp.py
+# 7 + from argparse import ArgumentParser
+# 8 + import numpy as np
+# 9 + import random
+# 10 + import wandb
+# 11 + import sys
+# 9 - train_data, test_data, train_label, test_label = load_mnist_2d('data')
+# 14 + def init(_config):
+# 16 +     # Random Seed
+# 17 +     np.random.seed(_config.seed)
+# 18 +     random.seed(_config.seed)
+# 11 - # Your model defintion here
+# 12 - # You should explore different model architecture
+# 13 - model = Network()
+# 14 - model.add(Linear('fc1', 784, 10, 0.01))
+# 16 - loss = EuclideanLoss(name='loss')
+# 20 +     # Activation Recorder
+# 21 +     def _activation_report(_self):
+# 22 +
+# 23 +         if not hasattr(_self, "activation_record"):
+# 24 +             _self.activation_record = np.zeros(_self.x.shape[1], dtype=np.int64)
+# 25 +             _self.activation_counter = 0
+# 27 +         activation = (_self.x > 0).astype(np.int64)
+# 18 - # Training configuration
+# 19 - # You should adjust these hyperparameters
+# 20 - # NOTE: one iteration means model forward-backwards one batch of samples.
+# 21 - #       one epoch means model has gone through all the training samples.
+# 22 - #       'disp_freq' denotes number of iterations in one epoch to display information.
+# 29 +         # Neuron Record
+# 30 +         _self.activation_record += activation.sum(axis=0)
+# 31 +         _self.activation_counter += activation.shape[0]
+# 24 - config = {
+# 25 -     'learning_rate': 0.0,
+# 26 -     'weight_decay': 0.0,
+# 27 -     'momentum': 0.0,
+# 28 -     'batch_size': 100,
+# 29 -     'max_epoch': 100,
+# 30 -     'disp_freq': 50,
+# 31 -     'test_epoch': 5
+# 32 - }
+# 33 +         # print("%s: %.4f" % (f"activation/{_self.name}", activation.mean()))
+# 34 +         if not _config.dr:
+# 35 +             wandb.log({
+# 36 +                 f"activation/{_self.name.split('_')[-1]}": activation.mean()
+# 37 +             })
+# 35 - for epoch in range(config['max_epoch']):
+# 36 -     LOG_INFO('Training @ %d epoch...' % (epoch))
+# 37 -     train_net(model, loss, config, train_data, train_label, config['batch_size'], config['disp_freq'])
+# 39 +     # Norm Recorder
+# 40 +     def _norm_report(_self):
+# 41 +
+# 42 +         norm = np.linalg.norm(_self.grad_W, 'fro')
+# 43 +         mean = np.abs(_self.grad_W).mean()
+# 44 +         _max = np.abs(_self.grad_W).max()
+# 46 +         # print("%s: %.4f" % (f"activation/{_self.name}", activation.mean()))
+# 47 +         if not _config.dr:
+# 48 +             wandb.log({
+# 49 +                 f"g_norm/{_self.name.split('_')[-1]}": norm,
+# 50 +                 f"g_max/{_self.name.split('_')[-1]}": _max,
+# 51 +                 f"g_mean/{_self.name.split('_')[-1]}": mean,
+# 52 +             })
+# 53 +
+# 54 +     # Load Architecture
+# 55 +     _model = Network()
+# 56 +
+# 57 +     if _config.nonlinearity == "Sigmoid":
+# 58 +         g = np.sqrt(2)
+# 59 +         NL = Sigmoid
+# 60 +     elif _config.nonlinearity == "Relu":
+# 61 +         g = 1
+# 62 +         NL = Relu
+# 63 +     elif _config.nonlinearity == "Gelu":
+# 64 +         g = 1
+# 65 +         NL = Gelu
+# 66 +
+# 67 +     for i in range(len(_config.layout) - 1):
+# 68 +         _model.add(
+# 69 +             Linear(
+# 70 +                 f"FC_{i}",
+# 71 +                 _config.layout[i],
+# 72 +                 _config.layout[i + 1],
+# 73 +                 _config.init,
+# 74 +                 _norm_report if _config.norm_report else None
+# 75 +             )
+# 76 +         )
+# 77 +         if i < len(_config.layout) - 2:
+# 78 +             _model.add(NL(f"{NL.__name__}_{i}", _activation_report if _config.activation_report else None))
+# 79 +     print(_model)
+# 80 +
+# 81 +
+# 82 +     # Define Loss
+# 83 +     if _config.loss.lower() == 'mse':
+# 84 +         _loss = EuclideanLoss(name='loss')
+# 85 +     elif _config.loss.lower() == 'ce':
+# 86 +         _loss = SoftmaxCrossEntropyLoss(name='loss')
+# 87 +     elif _config.loss.lower() == 'hinge':
+# 88 +         _loss = HingeLoss(name='loss', margin=config.margin)
+# 89 +     else:
+# 90 +         raise ValueError("Unexpected loss type " + _config['loss'])
+# 91 +
+# 92 +     if not _config.dr:
+# 93 +         # Connect WandB
+# 94 +         wandb.init(
+# 95 +             project=f"ann-1_{_config.seed}",
+# 96 +             config={
+# 97 +                 **vars(_config),
+# 98 +                 "command": sys.argv
+# 99 +             },
+# 100 +             name=_config.name
+# 101 +         )
+# 102 +
+# 103 +         # Define Metrics
+# 104 +         wandb.define_metric("train/loss", summary="min")
+# 105 +         wandb.define_metric("train/acc", summary="max")
+# 106 +         wandb.define_metric("train/time", summary="mean")
+# 107 +         wandb.define_metric("test/loss", summary="min")
+# 108 +         wandb.define_metric("test/acc", summary="max")
+# 109 +
+# 110 +     return _model, _loss
+# 111 +
+# 112 +
+# 113 + if __name__ == "__main__":
+# 114 +
+# 115 +     parser = ArgumentParser()
+# 116 +     parser.add_argument("--name", required=True, type=str)
+# 117 +     parser.add_argument("--loss", required=True, type=str, choices=["mse", "ce", "hinge"])
+# 118 +     parser.add_argument("--layout", required=True, type=int, nargs='+')
+# 119 +     parser.add_argument("--nonlinearity", required=True, type=str, choices=["Gelu", "Relu", "Sigmoid"])
+# 120 +     parser.add_argument("--learning_rate", default=5e-2, type=float)
+# 121 +     parser.add_argument("--weight_decay", default=1e-5, type=float)
+# 122 +     parser.add_argument("--momentum", default=0.9, type=float)
+# 123 +     parser.add_argument("--batch_size", default=100, type=int)
+# 124 +     parser.add_argument("--max_epoch", default=100, type=int)
+# 125 +     parser.add_argument("--disp_freq", default=100, type=int)
+# 126 +     parser.add_argument("--test_epoch", default=1, type=int)
+# 127 +     parser.add_argument("--init", default=0.01, type=float)
+# 128 +     parser.add_argument("--seed", default=2022, type=int)
+# 129 +     parser.add_argument("--log", default='iteration', type=str, choices=["iteration", "epoch"])
+# 130 +     parser.add_argument("--margin", default=0.1, type=float)
+# 131 +     parser.add_argument("--activation_report", default=False, action="store_true")
+# 132 +     parser.add_argument("--activation_th", default=0.2, action="store_true")
+# 133 +     parser.add_argument("--dr", default=False, action="store_true")
+# 134 +     parser.add_argument("--norm_report", default=False, action="store_true")
+# 135 +     parser.add_argument("--data_dir", default='data', type=str)
+# 136 +
+# 137 +     config = parser.parse_args()
+# 138 +
+# 139 +     train_data, test_data, train_label, test_label = load_mnist_2d(config.data_dir)
+# 140 +
+# 141 +     model, loss = init(config)
+# 142 +
+# 143 +     iteration = 0
+# 144 +     config = vars(config)
+# 145 +     for epoch in range(config['max_epoch']):
+# 146 +         LOG_INFO('Training @ %d epoch...' % (epoch))
+# 147 +         iteration = train_net(model, loss, config, train_data, train_label, iteration, config['batch_size'], config['disp_freq'], epoch)
+# 148 +
+# 39 -     if epoch % config['test_epoch'] == 0:
+# 149 +         if epoch % config['test_epoch'] == 0:
+# 149 ? ++++
+# 40 -         LOG_INFO('Testing @ %d epoch...' % (epoch))
+# 150 +             LOG_INFO('Testing @ %d epoch...' % (epoch))
+# 150 ? ++++
+# 41 -         test_net(model, loss, test_data, test_label, config['batch_size'])
+# 151 +             test_net(model, loss, test_data, test_label, config['batch_size'], iteration, epoch + 1, config)
+# 151 ? ++++                                                                         ++++++++++++++++++++++++++++++
+# 152 +
+# 153 +         # Activation Record for Each Epoch
+# 154 +         if config['activation_report']:
+# 155 +             for layer in model.layer_list:
+# 156 +                 if hasattr(layer, "activation_record"):
+# 157 +                     alive_pct = ((layer.activation_record.astype(np.float64) / layer.activation_counter) > config['activation_th']).mean()
+# 158 +                     if not config['dr']:
+# 159 +                         wandb.log({
+# 160 +                             f"activate_gt_{config['activation_th']}/{layer.name.split('_')[-1]}": alive_pct
+# 161 +                         }, step=iteration)
+# 162 +                     print("Alive", layer, round(alive_pct, 4))
+# _codes/loss.py -> ../codes/loss.py
+# 3 -
+# 23 -     def __init__(self, name):
+# 24 +     def __init__(self, name, threshold=1e-10):
+# 24 ?                            +++++++++++++++++
+# 26 +         self.threshold = threshold
+# 38 -
+# 40 -     def __init__(self, name, margin=5):
+# 40 ?                                    --
+# 50 +     def __init__(self, name, margin):
+# 52 +         self.margin = margin
+# 54 -
+# _codes/solve_net.py -> ../codes/solve_net.py
+# 3 + import time
+# 4 + import wandb
+# 15 - def train_net(model, loss, config, inputs, labels, batch_size, disp_freq):
+# 17 + def train_net(model, loss, config, inputs, labels, iter_counter, batch_size, disp_freq, epoch):
+# 17 ?                                                    ++++++++++++++                     +++++++
+# 17 -     iter_counter = 0
+# 21 +     time_list = []
+# 21 -     for input, label in data_iterator(inputs, labels, batch_size):
+# 23 +     for batch_idx, (input, label) in enumerate(data_iterator(inputs, labels, batch_size)):
+# 23 ?         ++++++++++++            +    ++++++++++                                         +
+# 24 +         tick_0 = time.time()
+# 43 +         time_list.append(time.time() - tick_0)
+# 46 +             mean_loss, mean_acc, mean_time = np.mean(loss_list), np.mean(acc_list), np.mean(time_list)
+# 47 +             if config['log'] == 'iteration' and not config['dr']:
+# 48 +                 wandb.log({
+# 49 +                     "train/loss": mean_loss,
+# 50 +                     "train/acc": mean_acc,
+# 51 +                     "train/time": mean_time
+# 52 +                 }, step=iter_counter)
+# 42 -             msg = '  Training iter %d, batch loss %.4f, batch acc %.4f' % (iter_counter, np.mean(loss_list), np.mean(acc_list))
+# 42 ?                                                                                          ---    ^    ------  ---    ^    ^ ^^^
+# 53 +             msg = '  Training iter %d, batch loss %.4f, batch acc %.4f, time_cost %.4f' % (iter_counter, mean_loss, mean_acc, mean_time)
+# 53 ?                                                                       ++++++++++++++++                       ^          ^   ++++++ ^ ^^
+# 57 +
+# 58 +     if config['log'] == 'epoch' and not config["dr"]:
+# 59 +         wandb.log({
+# 60 +             "train/loss": mean_loss,
+# 61 +             "train/acc": mean_acc,
+# 62 +             "train/time": mean_time
+# 63 +         }, step=epoch)
+# 64 +     return iter_counter
+# 48 - def test_net(model, loss, inputs, labels, batch_size):
+# 67 + def test_net(model, loss, inputs, labels, batch_size, iteration, epoch, config):
+# 67 ?                                                     ++++++++++++++++++++++++++
+# 78 +     if not config["dr"]:
+# 79 +         wandb.log({
+# 80 +             "test/loss": np.mean(loss_list),
+# 81 +             "test/acc": np.mean(acc_list)
+# 82 +         }, step=iteration if config['log'] == 'iteration' else epoch)
+

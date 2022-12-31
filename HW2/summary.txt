@@ -1,0 +1,386 @@
+########################
+# Additional Files
+########################
+# README.md
+# basic.sh
+# commands.sh
+
+########################
+# Filled Code
+########################
+# ../codes/mlp/model.py:1
+    def __init__(self, num_features, momentum=0.1, eps=1e-5):
+        self.weight = Parameter(torch.empty(self.num_features))
+        self.bias = Parameter(torch.empty(self.num_features))
+        self.register_buffer('running_mean', torch.zeros(self.num_features))
+        self.register_buffer('running_var', torch.ones(self.num_features))
+        init.ones_(self.weight)
+        init.zeros_(self.bias)
+
+        self.momentum = momentum
+        self.eps = eps
+        if self.training:
+            mean, var = input.mean(dim=0), input.var(dim=0)
+            self.running_mean = (1 - self.momentum) * self.running_mean + self.momentum * mean
+            self.running_var = (1 - self.momentum) * self.running_var + self.momentum * var
+        else:
+            mean, var = self.running_mean, self.running_var
+
+        normalized = (input - mean) / torch.sqrt(var + self.eps)
+        return normalized * self.weight + self.bias
+
+# ../codes/mlp/model.py:2
+        if self.training:
+            q = 1 - self.p
+            return input * torch.bernoulli(torch.full_like(input, q, device=input.device)) / q
+        else:
+            return input
+
+# ../codes/mlp/model.py:3
+        self.to_logits = nn.Sequential(OrderedDict([
+            ('Linear1', nn.Linear(input_shape, hidden_size, bias=True)),
+            ("BN", BatchNorm1d(hidden_size)),
+            ("ReLU", nn.ReLU()),
+            ("Dropout", Dropout(drop_rate)),
+            ("Linear2", nn.Linear(hidden_size, num_classes, bias=True))
+        ]))
+
+# ../codes/mlp/model.py:4
+        logits = self.to_logits(x)
+
+# ../codes/cnn/model.py:1
+    def __init__(self, num_features, momentum=0.1, eps=1e-5):
+        self.weight = Parameter(torch.empty(self.num_features))
+        self.bias = Parameter(torch.empty(self.num_features))
+        self.register_buffer('running_mean', torch.zeros(self.num_features))
+        self.register_buffer('running_var', torch.ones(self.num_features))
+        init.ones_(self.weight)
+        init.zeros_(self.bias)
+
+        self.momentum = momentum
+        self.eps = eps
+        # input: [batch_size, num_feature_map, height, width]
+        if self.training:
+            mean, var = input.mean(dim=(0, 2, 3)), input.var(dim=(0, 2, 3))
+            self.running_mean = (1 - self.momentum) * self.running_mean + self.momentum * mean
+            self.running_var = (1 - self.momentum) * self.running_var + self.momentum * var
+        else:
+            mean, var = self.running_mean, self.running_var
+
+        normalized = (input - mean.view(1, self.num_features, 1, 1)) / torch.sqrt(var.view(1, self.num_features, 1, 1) + self.eps)
+        return normalized * self.weight.view(1, self.num_features, 1, 1) + self.bias.view(1, self.num_features, 1, 1)
+
+# ../codes/cnn/model.py:2
+    def __init__(self, p=0.5, align_channel=True):
+        self.align_channel = align_channel
+        assert len(input.shape) == 4
+        if self.training:
+            q = 1 - self.p
+            if self.align_channel:
+                co = (torch.bernoulli(torch.full(input.shape[:2], q, device=input.device)) / q).view(*input.shape[:2], 1, 1)
+            else:
+                co = torch.bernoulli(torch.full_like(input, q, device=input.device)) / q
+            return input * co
+        else:
+            return input
+
+# ../codes/cnn/model.py:3
+
+        assert len(conv_ch) == 2
+        assert len(conv_ker) == 2
+        assert len(pool_ker) == 2
+        assert len(pool_stride) == 2
+        assert len(drop_rate) == 2
+
+        self.conv0 = nn.Sequential(OrderedDict([
+            ("Conv", nn.Conv2d(3, conv_ch[0], conv_ker[0], padding=conv_ker[0] // 2)),
+            ("BN", BatchNorm2d(conv_ch[0])),
+            ("ReLU", nn.ReLU()),
+            ("Dropout", Dropout(drop_rate[0], channel_align)),
+            ("MaxPool", nn.MaxPool2d(pool_ker[0], pool_stride[0], padding=pool_ker[0] // 2))
+        ]))
+        C = input_width + (conv_ker[0] // 2) * 2 - conv_ker[0] + 1
+        C = (C - pool_ker[0] + (pool_ker[0] // 2) * 2) // pool_stride[0] + 1
+
+        self.conv1 = nn.Sequential(OrderedDict([
+            ("Conv", nn.Conv2d(conv_ch[0], conv_ch[1], conv_ker[1],
+            padding=conv_ker[1] // 2
+            )),
+            ("BN", BatchNorm2d(conv_ch[1])),
+            ("ReLU", nn.ReLU()),
+            ("Dropout", Dropout(drop_rate[1], channel_align)),
+            ("MaxPool", nn.MaxPool2d(pool_ker[1], pool_stride[1], padding=pool_ker[1] // 2))
+        ]))
+        C = C + (conv_ker[1] // 2) * 2 - conv_ker[1] + 1
+        C = (C - pool_ker[1] + (pool_ker[1] // 2) * 2) // pool_stride[1] + 1
+
+        self.fc = nn.Linear(conv_ch[1] * C * C, num_classes)
+
+# ../codes/cnn/model.py:4
+        x = self.conv0(x)
+        x = self.conv1(x)
+        x = x.flatten(start_dim=1)
+        logits = self.fc(x)
+
+
+########################
+# References
+########################
+
+########################
+# Other Modifications
+########################
+# _codes/mlp/main.py -> ../codes/mlp/main.py
+# 6 + import random
+# 16 + import wandb
+# 17 +
+# 18 + def init():
+# 19 +     global args
+# 20 +
+# 15 - parser = argparse.ArgumentParser()
+# 21 +     parser = argparse.ArgumentParser()
+# 21 ? ++++
+# 16 -
+# 17 - parser.add_argument('--batch_size', type=int, default=100,
+# 22 +     parser.add_argument('--batch_size', type=int, default=100,
+# 22 ? ++++
+# 18 -     help='Batch size for mini-batch training and evaluating. Default: 100')
+# 23 +         help='Batch size for mini-batch training and evaluating. Default: 100')
+# 23 ? ++++
+# 19 - parser.add_argument('--num_epochs', type=int, default=20,
+# 19 ?                                                       ^
+# 24 +     parser.add_argument('--num_epochs', type=int, default=30,
+# 24 ? ++++                                                      ^
+# 20 -     help='Number of training epoch. Default: 20')
+# 25 +         help='Number of training epoch. Default: 20')
+# 25 ? ++++
+# 21 - parser.add_argument('--learning_rate', type=float, default=1e-3,
+# 26 +     parser.add_argument('--learning_rate', type=float, default=1e-3,
+# 26 ? ++++
+# 22 -     help='Learning rate during optimization. Default: 1e-3')
+# 27 +         help='Learning rate during optimization. Default: 1e-3')
+# 27 ? ++++
+# 23 - parser.add_argument('--drop_rate', type=float, default=0.5,
+# 28 +     parser.add_argument('--drop_rate', type=float, default=0.5,
+# 28 ? ++++
+# 24 -     help='Drop rate of the Dropout Layer. Default: 0.5')
+# 29 +         help='Drop rate of the Dropout Layer. Default: 0.5')
+# 29 ? ++++
+# 25 - parser.add_argument('--is_train', type=bool, default=True,
+# 30 +     parser.add_argument('--is_train', default=False, action="store_true",
+# 26 -     help='True to train and False to inference. Default: True')
+# 26 ?                                                          ^^^
+# 31 +         help='True to train and False to inference. Default: False')
+# 31 ? ++++                                                         ^^^^
+# 27 - parser.add_argument('--data_dir', type=str, default='../cifar-10_data',
+# 32 +     parser.add_argument('--data_dir', type=str, default='../cifar-10_data',
+# 32 ? ++++
+# 28 -     help='Data directory. Default: ../cifar-10_data')
+# 28 ?                                       ---------
+# 33 +         help='Data directory. Default: ../data')
+# 33 ? ++++
+# 29 - parser.add_argument('--train_dir', type=str, default='./train',
+# 34 +     parser.add_argument('--train_dir', type=str, default='./train',
+# 34 ? ++++
+# 30 -     help='Training directory for saving model. Default: ./train')
+# 35 +         help='Training directory for saving model. Default: ./train')
+# 35 ? ++++
+# 31 - parser.add_argument('--inference_version', type=int, default=0,
+# 36 +     parser.add_argument('--inference_version', type=int, default=0,
+# 36 ? ++++
+# 32 -     help='The version for inference. Set 0 to use latest checkpoint. Default: 0')
+# 37 +         help='The version for inference. Set 0 to use latest checkpoint. Default: 0')
+# 37 ? ++++
+# 38 +     parser.add_argument('--hidden_size', default=512, type=int,
+# 39 +         help='Size of the hidden layer')
+# 40 +     parser.add_argument('--weight_decay', type=float, default=0,
+# 41 +         help='Weight decay')
+# 42 +     parser.add_argument('--name', required=True, type=str,
+# 43 +         help="Name of the experiment for wandb")
+# 44 +     parser.add_argument('--wb_project_prefix', default='ann_2', type=str,
+# 45 +         help='Project prefix in wandb')
+# 46 +     parser.add_argument('--seed', type=int, default=-1,
+# 47 +         help='Radom seed. If positive seed will be set as rando seed while negative one will be ignored.')
+# 33 - args = parser.parse_args()
+# 48 +     args = parser.parse_args()
+# 48 ? ++++
+# 49 +
+# 50 +     wandb.init(
+# 51 +         project=f"{args.wb_project_prefix}_{args.seed}",
+# 52 +         name=args.name,
+# 53 +         config={
+# 54 +             "command": sys.argv,
+# 55 +             **vars(args)
+# 56 +         }
+# 57 +     )
+# 59 +     # Random Seed
+# 60 +     if args.seed < 0:
+# 61 +         args.seed = int(time.time())
+# 62 +
+# 63 +     print("Random Seed", args.seed)
+# 64 +
+# 65 +     np.random.seed(args.seed)
+# 66 +     random.seed(args.seed)
+# 67 +     torch.manual_seed(args.seed)
+# 68 +     torch.cuda.manual_seed(args.seed)
+# 69 +     torch.cuda.manual_seed_all(args.seed)
+# 70 +     torch.backends.cudnn.deterministic = True
+# 71 +     torch.backends.cudnn.benchmark = False
+# 138 +     init()
+# 102 -     if not os.path.exists(args.train_dir):
+# 140 +     # if not os.path.exists(args.train_dir):
+# 140 ?    ++
+# 103 -         os.mkdir(args.train_dir)
+# 103 ?      ^^^
+# 141 +     # 	os.mkdir(args.train_dir)
+# 141 ?     + ^
+# 108 -         mlp_model = Model(drop_rate=args.drop_rate)
+# 146 +         mlp_model = Model(drop_rate=args.drop_rate, hidden_size=args.hidden_size)
+# 146 ?                                                   ++++++++++++++++++++++++++++++
+# 148 +         print("Training on", device)
+# 150 +         print("Parameter Size", sum(map(torch.numel, mlp_model.parameters())) / 1000 / 1000, "M")
+# 111 -         optimizer = optim.Adam(mlp_model.parameters(), lr=args.learning_rate)
+# 151 +         optimizer = optim.AdamW(mlp_model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+# 151 ?                               +                                              ++++++++++++++++++++++++++++++++
+# 174 +                 wandb.log({
+# 175 +                     "test/loss": test_loss,
+# 176 +                     "test/acc": test_acc,
+# 177 +                     "test/best_val_acc": best_val_acc,
+# 178 +                 }, step=epoch)
+# 191 +             wandb.log({
+# 192 +                 "lr": optimizer.param_groups[0]['lr'],
+# 193 +                 "train/loss": train_loss,
+# 194 +                 "train/acc": train_acc,
+# 195 +                 "val/loss": val_loss,
+# 196 +                 "val/acc": val_acc,
+# 197 +             }, step=epoch)
+# _codes/mlp/model.py -> ../codes/mlp/model.py
+# 7 + from collections import OrderedDict
+# 8 +
+# 40 -     def __init__(self, drop_rate=0.5):
+# 58 +     def __init__(self, drop_rate=0.5, hidden_size=1024, input_shape=3072, num_classes=10):
+# _codes/cnn/main.py -> ../codes/cnn/main.py
+# 11 + import random
+# 23 - parser.add_argument('--drop_rate', type=float, default=0.5,
+# 23 ?                                                ^^^ ^^^ ^^^
+# 24 + parser.add_argument('--drop_rate', type=float, nargs=2,
+# 24 ?                                                ^ ^^^ ^
+# 24 -     help='Drop rate of the Dropout Layer. Default: 0.5')
+# 24 ?                        ^ -              --------------
+# 25 +     help='Drop rate of each Dropout Layer')
+# 25 ?                        ^^^
+# 25 - parser.add_argument('--is_train', type=bool, default=True,
+# 25 ?                                    ^^ ^^^^^          ^^^
+# 26 + parser.add_argument('--is_train', action="store_true", default=False,
+# 26 ?                                   ++ ^^^^^^^^^ ^^^^^^          ^^^^
+# 34 + parser.add_argument('--conv_ch', type=int, nargs=2, required=True,
+# 35 +     help="Conv channel size.")
+# 36 + parser.add_argument('--conv_ker', type=int, nargs=2, required=True,
+# 37 +     help="Conv ker size.")
+# 38 + parser.add_argument('--pool_ker', type=int, nargs=2, required=True,
+# 39 +     help="MaxPooling kernel size.")
+# 40 + parser.add_argument('--pool_stride', type=int, nargs=2, required=True,
+# 41 +     help="MaxPooling stride.")
+# 42 + parser.add_argument('--weight_decay', type=float, default=0,
+# 43 +     help='Weight decay')
+# 44 + parser.add_argument('--name', required=True, type=str,
+# 45 +     help="Name of the experiment for wandb")
+# 46 + parser.add_argument('--wb_project_prefix', default='ann_2', type=str,
+# 47 +     help='Project prefix in wandb')
+# 48 + parser.add_argument('--seed', type=int, default=-1,
+# 49 +     help='Radom seed. If positive seed will be set as rando seed while negative one will be ignored.')
+# 50 + parser.add_argument('--dr', action='store_true', default=False)
+# 52 + if not args.dr:
+# 53 +     import wandb
+# 54 +     wandb.init(
+# 55 +         project=f"{args.wb_project_prefix}_{args.seed}",
+# 56 +         name=args.name,
+# 57 +         config={
+# 58 +             "command": sys.argv,
+# 59 +             **vars(args)
+# 60 +         }
+# 61 +     )
+# 63 + # Random Seed
+# 64 + if args.seed < 0:
+# 65 +     args.seed = int(time.time())
+# 66 +
+# 67 + print("Random Seed", args.seed)
+# 68 +
+# 69 + np.random.seed(args.seed)
+# 70 + random.seed(args.seed)
+# 71 + torch.manual_seed(args.seed)
+# 72 + torch.cuda.manual_seed(args.seed)
+# 73 + torch.cuda.manual_seed_all(args.seed)
+# 74 + torch.backends.cudnn.deterministic = True
+# 75 + torch.backends.cudnn.benchmark = False
+# 102 -     if not os.path.exists(args.train_dir):
+# 143 +     # if not os.path.exists(args.train_dir):
+# 143 ?    ++
+# 103 -         os.mkdir(args.train_dir)
+# 103 ?      ^^^
+# 144 +     # 	os.mkdir(args.train_dir)
+# 144 ?     + ^
+# 149 +         cnn_model = Model(
+# 150 +             args.conv_ch,
+# 151 +             args.conv_ker,
+# 152 +             args.pool_ker,
+# 153 +             args.pool_stride,
+# 108 -         cnn_model = Model(drop_rate=args.drop_rate)
+# 108 ?         --------- - ^^^^^^                        -
+# 154 +             drop_rate=args.drop_rate
+# 154 ?           ^^
+# 155 +         )
+# 158 +         print("Parameter Size", sum(map(torch.numel, cnn_model.parameters())) / 1000 / 1000, "M")
+# 111 -         optimizer = optim.Adam(cnn_model.parameters(), lr=args.learning_rate)
+# 159 +         optimizer = optim.AdamW(cnn_model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+# 159 ?                               +                                              ++++++++++++++++++++++++++++++++
+# 130 -                 with open(os.path.join(args.train_dir, 'checkpoint_{}.pth.tar'.format(epoch)), 'wb') as fout:
+# 178 +                 # with open(os.path.join(args.train_dir, 'checkpoint_{}.pth.tar'.format(epoch)), 'wb') as fout:
+# 178 ?                ++
+# 131 -                     torch.save(cnn_model, fout)
+# 131 ?                  ^^^
+# 179 +                 # 	torch.save(cnn_model, fout)
+# 179 ?                 + ^
+# 132 -                 with open(os.path.join(args.train_dir, 'checkpoint_0.pth.tar'), 'wb') as fout:
+# 180 +                 # with open(os.path.join(args.train_dir, 'checkpoint_0.pth.tar'), 'wb') as fout:
+# 180 ?                ++
+# 133 -                     torch.save(cnn_model, fout)
+# 133 ?                  ^^^
+# 181 +                 # 	torch.save(cnn_model, fout)
+# 181 ?                 + ^
+# 182 +                 if not args.dr:
+# 183 +                     wandb.log({
+# 184 +                         "test/loss": test_loss,
+# 185 +                         "test/acc": test_acc,
+# 186 +                         "test/best_val_acc": best_val_acc,
+# 187 +                     }, step=epoch)
+# 200 +             if not args.dr:
+# 201 +                 wandb.log({
+# 202 +                     "lr": optimizer.param_groups[0]['lr'],
+# 203 +                     "train/loss": train_loss,
+# 204 +                     "train/acc": train_acc,
+# 205 +                     "val/loss": val_loss,
+# 206 +                     "val/acc": val_acc,
+# 207 +                 }, step=epoch)
+# _codes/cnn/model.py -> ../codes/cnn/model.py
+# 3 + import imp
+# 4 + from typing import OrderedDict
+# 42 +
+# 43 +     def __repr__(self):
+# 44 +         return f"BatchNorm2d(num_features={self.num_features}, momentum={self.momentum}, eps={self.eps})"
+# 66 +     def __repr__(self):
+# 67 +         return f"Dropout(p={self.p}, align_channel={self.align_channel})"
+# 68 +
+# 40 -     def __init__(self, drop_rate=0.5):
+# 70 +     def __init__(
+# 71 +         self,
+# 72 +         conv_ch,
+# 73 +         conv_ker,
+# 74 +         pool_ker,
+# 75 +         pool_stride,
+# 76 +         drop_rate,
+# 77 +         num_classes=10,
+# 78 +         input_width=32,
+# 79 +         channel_align=True,
+# 80 +         ):
+

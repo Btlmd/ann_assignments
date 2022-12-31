@@ -1,0 +1,326 @@
+########################
+# Additional Files
+########################
+# README.md
+# grouping.py
+# run.sh
+
+########################
+# Filled Code
+########################
+# ../codes/GAN/GAN.py:1
+        layer1 = nn.Sequential(
+            nn.ConvTranspose2d(self.latent_dim, 4 * self.hidden_dim, 4, 1, 0),
+            nn.BatchNorm2d(4 * self.hidden_dim),
+            nn.ReLU(),
+        )
+        layer2 = nn.Sequential(
+            nn.ConvTranspose2d(4 * self.hidden_dim, 2 * self.hidden_dim, 4, 2, 1),
+            nn.BatchNorm2d(2 * self.hidden_dim),
+            nn.ReLU(),
+        )
+        layer3 = nn.Sequential(
+            nn.ConvTranspose2d(2 * self.hidden_dim, self.hidden_dim, 4, 2, 1),
+            nn.BatchNorm2d(self.hidden_dim),
+            nn.ReLU(),
+        )
+        layer4 = nn.Sequential(
+            nn.ConvTranspose2d(self.hidden_dim, 1, 4, 2, 1),
+            nn.Tanh(),
+        )
+            layer1,
+            layer2,
+            layer3,
+            layer4,
+
+# ../codes/GAN/trainer.py:1
+        real_scores = self._netD(real_imgs)
+        loss_D_real = BCE_criterion(real_scores, torch.ones_like(real_scores))
+        D_x = real_scores.detach().mean()
+        loss_D_real.backward()
+
+# ../codes/GAN/trainer.py:2
+        fake_scores = self._netD(fake_imgs)
+        loss_D_fake = BCE_criterion(fake_scores, torch.zeros_like(fake_scores))
+        D_G_z1 = fake_scores.detach().mean()
+        loss_D_fake.backward(retain_graph=True)
+
+# ../codes/GAN/trainer.py:3
+        fake_scores = self._netD(fake_imgs)
+        loss_G = BCE_criterion(fake_scores, torch.ones_like(fake_scores))
+        D_G_z2 = fake_scores.detach().mean()
+
+
+########################
+# References
+########################
+
+########################
+# Other Modifications
+########################
+# _codes/GAN/GAN.py -> ../codes/GAN/GAN.py
+# 4 + from typing import List
+# 5 +
+# 6 + class Model:
+# 7 +     name: str
+# 8 +     def restore(self, ckpt_dir):
+# 9 +         try:
+# 10 +             if os.path.exists(os.path.join(ckpt_dir, f'{self.name}.bin')):
+# 11 +                 path = os.path.join(ckpt_dir, f'{self.name}.bin')
+# 12 +             else:
+# 13 +                 path = os.path.join(ckpt_dir, str(max(int(name) for name in os.listdir(ckpt_dir))), f'{self.name}.bin')
+# 14 +         except:
+# 15 +             print(f"[{type(self).__name__}] No checkpoint")
+# 16 +             return
+# 17 +         print(f"[{type(self).__name__}] Restore from", path)
+# 18 +         self.load_state_dict(torch.load(path))
+# 19 +         return os.path.split(path)[0]
+# 20 +
+# 21 +     def save(self, ckpt_dir, global_step):
+# 22 +         os.makedirs(os.path.join(ckpt_dir, str(global_step)), exist_ok=True)
+# 23 +         path = os.path.join(ckpt_dir, str(global_step), f'{self.name}.bin')
+# 24 +         torch.save(self.state_dict(), path)
+# 25 +         return os.path.split(path)[0]
+# 34 +
+# 35 + def get_mlp_generator(arch, device):
+# 36 +     model = MLPGenerator(arch).to(device)
+# 37 +     model.apply(weights_init)
+# 38 +     return model
+# 39 +
+# 40 + def get_mlp_discriminator(arch, device):
+# 41 +     model = MLPDiscriminator(arch).to(device)
+# 42 +     model.apply(weights_init)
+# 43 +     return model
+# 55 +
+# 23 - class Generator(nn.Module):
+# 56 + class Generator(nn.Module, Model):
+# 56 ?                          +++++++
+# 62 +         self.name = type(self).__name__.lower()
+# 44 -     def restore(self, ckpt_dir):
+# 45 -         try:
+# 46 -             if os.path.exists(os.path.join(ckpt_dir, 'generator.bin')):
+# 47 -                 path = os.path.join(ckpt_dir, 'generator.bin')
+# 48 -             else:
+# 49 -                 path = os.path.join(ckpt_dir, str(max(int(name) for name in os.listdir(ckpt_dir))), 'generator.bin')
+# 50 -         except:
+# 51 -             return None
+# 52 -         self.load_state_dict(torch.load(path))
+# 53 -         return os.path.split(path)[0]
+# 100 + class MLPGenerator(nn.Module, Model):
+# 101 +     def __init__(self, arch: List[int]):
+# 102 +         super().__init__()
+# 103 +         modules = []
+# 104 +         for i in range(len(arch) - 1):
+# 105 +             modules.append(nn.Linear(arch[i], arch[i + 1]))
+# 106 +             if i != len(arch) - 2:
+# 107 +                 modules.append(nn.BatchNorm1d(arch[i + 1]))
+# 108 +                 modules.append(nn.ReLU())
+# 109 +         modules.append(nn.Tanh())
+# 110 +         self.decoder = nn.Sequential(*modules)
+# 111 +         self.name = type(self).__name__.lower()
+# 112 +         self.latent_dim = arch[0]
+# 114 +     def forward(self, z):
+# 115 +         z = z.view(*z.shape[:2])
+# 116 +         return self.decoder(z).view(z.size(0), 1, 32, 32)
+# 55 -     def save(self, ckpt_dir, global_step):
+# 56 -         os.makedirs(os.path.join(ckpt_dir, str(global_step)), exist_ok=True)
+# 57 -         path = os.path.join(ckpt_dir, str(global_step), 'generator.bin')
+# 58 -         torch.save(self.state_dict(), path)
+# 59 -         return os.path.split(path)[0]
+# 61 - class Discriminator(nn.Module):
+# 118 + class Discriminator(nn.Module, Model):
+# 118 ?                              +++++++
+# 139 +         self.name = type(self).__name__.lower()
+# 86 -     def restore(self, ckpt_dir):
+# 87 -         try:
+# 88 -             if os.path.exists(os.path.join(ckpt_dir, 'discriminator.bin')):
+# 89 -                 path = os.path.join(ckpt_dir, 'discriminator.bin')
+# 90 -             else:
+# 91 -                 path = os.path.join(ckpt_dir, str(max(int(name) for name in os.listdir(ckpt_dir))), 'discriminator.bin')
+# 92 -         except:
+# 93 -             return None
+# 94 -         self.load_state_dict(torch.load(path))
+# 95 -         return os.path.split(path)[0]
+# 97 -     def save(self, ckpt_dir, global_step):
+# 98 -         os.makedirs(os.path.join(ckpt_dir, str(global_step)), exist_ok=True)
+# 99 -         path = os.path.join(ckpt_dir, str(global_step), 'discriminator.bin')
+# 100 -         torch.save(self.state_dict(), path)
+# 101 -         return os.path.split(path)[0]
+# 145 + class MLPDiscriminator(nn.Module, Model):
+# 146 +     def __init__(self, arch: List[int]):
+# 147 +         super().__init__()
+# 148 +         modules = []
+# 149 +         for i in range(len(arch) - 1):
+# 150 +             modules.append(nn.Linear(arch[i], arch[i + 1]))
+# 151 +             if i != len(arch) - 2:
+# 152 +                 # modules.append(nn.BatchNorm1d(arch[i + 1]))
+# 153 +                 modules.append(nn.LeakyReLU(0.2, inplace=True))
+# 154 +         modules.append(nn.Sigmoid())
+# 155 +         self.encoder = nn.Sequential(*modules)
+# 156 +         self.name = type(self).__name__.lower()
+# 157 +
+# 158 +     def forward(self, z):
+# 159 +         z = z.view(z.size(0), -1)
+# 160 +         return self.encoder(z)
+# _codes/GAN/main.py -> ../codes/GAN/main.py
+# 1 + import json
+# 2 +
+# 6 - from pytorch_fid import fid_score
+# 7 -
+# 12 + import numpy as np
+# 13 + import random
+# 14 + import time
+# 15 + import torchvision.utils as tvu
+# 16 +
+# 17 + def param_count(module: torch.nn.Module):
+# 18 +     p_count = sum(map(torch.numel, module.parameters()))
+# 19 +     print("[{}] Parameter Count {:.2e}".format(type(module).__name__, p_count))
+# 23 -     parser.add_argument('--saving_steps', type=int, default=1000)
+# 23 ?                                                             ^^
+# 31 +     parser.add_argument('--saving_steps', type=int, default=200)
+# 31 ?                                                             ^
+# 36 +     parser.add_argument('--interpolation_batch', default=0, type=int)
+# 37 +     parser.add_argument('--interpolation_K', default=10, type=int)
+# 38 +     parser.add_argument('--interpolation_range', nargs=2, default=[0, 1], type=float)
+# 40 +     parser.add_argument('--seed', default=2022, type=int)
+# 41 +     parser.add_argument('--mlp', default=False, action='store_true')
+# 42 +     parser.add_argument('--mlp_g_arch', nargs='+', type=int)
+# 43 +     parser.add_argument('--mlp_d_arch', nargs='+', type=int)
+# 44 +     parser.add_argument('--sampling', default=0, type=int)
+# 45 +     parser.add_argument('--tag', default='', type=str)
+# 46 +     parser.add_argument('--print_param_only', default=False, action='store_true')
+# 31 -     config = 'z-{}_batch-{}_num-train-steps-{}'.format(args.latent_dim, args.batch_size, args.num_training_steps)
+# 49 +     # Global Random Seed
+# 50 +     if args.seed < 0:
+# 51 +         args.seed = int(time.time())
+# 52 +     print("Random Seed", args.seed)
+# 53 +     np.random.seed(args.seed)
+# 54 +     random.seed(args.seed)
+# 55 +     torch.manual_seed(args.seed)
+# 56 +     torch.cuda.manual_seed(args.seed)
+# 57 +     torch.cuda.manual_seed_all(args.seed)
+# 58 +     torch.backends.cudnn.deterministic = True
+# 59 +     torch.backends.cudnn.benchmark = False
+# 60 +
+# 61 +     from pytorch_fid import fid_score
+# 62 +
+# 63 +     if args.mlp:
+# 64 +         args.latent_dim = args.mlp_g_arch[0]
+# 65 +         config = 'MLP-z-L{}_G{}_D{}_B{}_S{}_SD{}'.format(
+# 66 +             args.latent_dim,
+# 67 +             str(args.mlp_g_arch),
+# 68 +             str(args.mlp_d_arch),
+# 69 +             args.batch_size,
+# 70 +             args.num_training_steps,
+# 71 +             args.seed,
+# 72 +         ).replace(" ", "")
+# 73 +     else:
+# 74 +         config = 'z-L{}_G{}_D{}_B{}_S{}_SD{}'.format(
+# 75 +             args.latent_dim,
+# 76 +             args.generator_hidden_dim,
+# 77 +             args.discriminator_hidden_dim,
+# 78 +             args.batch_size,
+# 79 +             args.num_training_steps,
+# 80 +             args.seed,
+# 81 +         )
+# 82 +     config = args.tag + config
+# 83 +
+# 36 -     dataset = Dataset(args.batch_size, args.data_dir)
+# 88 +     dataset = Dataset(args.batch_size, args.data_dir, args.seed)
+# 88 ?                                                     +++++++++++
+# 89 +     if args.mlp:
+# 90 +         netG = GAN.get_mlp_generator(args.mlp_g_arch, device)
+# 91 +         netD = GAN.get_mlp_discriminator(args.mlp_d_arch, device)
+# 92 +     else:
+# 37 -     netG = GAN.get_generator(1, args.latent_dim, args.generator_hidden_dim, device)
+# 93 +         netG = GAN.get_generator(1, args.latent_dim, args.generator_hidden_dim, device)
+# 93 ? ++++
+# 38 -     netD = GAN.get_discriminator(1, args.discriminator_hidden_dim, device)
+# 94 +         netD = GAN.get_discriminator(1, args.discriminator_hidden_dim, device)
+# 94 ? ++++
+# 95 +     param_count(netG)
+# 96 +     param_count(netD)
+# 97 +     # print(netG)
+# 98 +     # print(netD)
+# 99 +     if args.print_param_only:
+# 100 +         exit(0)
+# 101 +
+# 47 -     restore_ckpt_path = os.path.join(args.ckpt_dir, str(max(int(step) for step in os.listdir(args.ckpt_dir))))
+# 110 +     restore_ckpt_path = os.path.join(args.ckpt_dir, str(max(int(step) for step in os.listdir(args.ckpt_dir) if step.isnumeric())))
+# 110 ?                                                                                                            ++++++++++++++++++++
+# 112 +     netG.eval()
+# 113 +
+# 114 +     if args.interpolation_batch > 0:
+# 115 +         print("Interpolating ...")
+# 116 +         with torch.no_grad():
+# 117 +             K, rg, B = args.interpolation_K + 1, args.interpolation_range, args.interpolation_batch
+# 118 +             l_shape = B, netG.latent_dim, 1
+# 119 +             points = torch.randn(2, *l_shape, device=device)
+# 120 +             weights = torch.linspace(*rg, K, device=device)
+# 121 +             # print(weights)
+# 122 +             z_batch = torch.lerp(
+# 123 +                 *points,
+# 124 +                 weights
+# 125 +             ).permute((0, 2, 1))[..., None, None]  # (batch, K, latent_dim, 1, 1)
+# 126 +
+# 127 +             images = netG(torch.cat(tuple(z_batch), dim=0))
+# 128 +             images = (tvu.make_grid(images, nrow=z_batch.size(1), pad_value=0) + 1) / 2
+# 129 +             tvu.save_image(
+# 130 +                 images,
+# 131 +                 os.path.join(
+# 132 +                     args.ckpt_dir,
+# 133 +                     f"interpolation{B}_{K}_{rg}.png".replace(" ", "")
+# 134 +                 )
+# 135 +             )
+# 136 +             exit(0)
+# 137 +     if args.sampling > 0:
+# 138 +         print("Sampling ...")
+# 139 +         with torch.no_grad():
+# 140 +             z_batch = torch.randn(args.sampling, netG.latent_dim, 1, 1, device=device)
+# 141 +             images = netG(z_batch)
+# 142 +             images = (tvu.make_grid(images, nrow=int(np.sqrt(args.sampling)), pad_value=0) + 1) / 2
+# 143 +             tvu.save_image(images, os.path.join(args.ckpt_dir, f"sampling{args.sampling}.png"))
+# 144 +             exit(0)
+# 74 -     print("FID score: {:.3f}".format(fid), flush=True)
+# 74 ?                          ^
+# 170 +     print("FID score: {:.2f}\n".format(fid), flush=True)
+# 170 ?                          ^  ++                          +
+# 171 +     with open("log.jsonl", "a") as f:
+# 172 +         json.dump({
+# 173 +             "name": config,
+# 174 +             "fid": fid
+# 175 +         }, f)
+# 176 +         f.write("\n")
+# 177 +     tb_writer.flush()
+# _codes/GAN/dataset.py -> ../codes/GAN/dataset.py
+# 7 -
+# 10 -     def __init__(self, batch_size, path):
+# 9 +     def __init__(self, batch_size, path, seed=0):
+# 9 ?                                        ++++++++
+# 35 +         def worker_init_fn(worker_id):
+# 36 +             import random
+# 37 +             import torch
+# 38 +             import numpy as np
+# 39 +             np.random.seed(seed)
+# 40 +             random.seed(seed)
+# 41 +             torch.manual_seed(seed)
+# 42 +             torch.cuda.manual_seed(seed)
+# 43 +             torch.cuda.manual_seed_all(seed)
+# 44 +             torch.backends.cudnn.deterministic = True
+# 45 +             torch.backends.cudnn.benchmark = False
+# 46 +
+# 41 -             pin_memory=True
+# 52 +             pin_memory=True,
+# 52 ?                            +
+# 53 +             worker_init_fn=worker_init_fn,
+# _codes/GAN/trainer.py -> ../codes/GAN/trainer.py
+# 61 -
+# 63 +
+# 70 -
+# 72 +
+# 78 -
+# 81 +
+# 96 -
+# 99 +
+# 106 +                 self._tb_writer.flush()
+
